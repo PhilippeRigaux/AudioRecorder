@@ -16,6 +16,7 @@ A command-line macOS tool written in Swift that uses **AVFoundation** and **Swif
 - [Features](#features)  
 - [Installation](#installation)  
 - [Usage](#usage)  
+  - [Command-line Options](#command-line-options)  
   - [HTTP API](#http-api)  
   - [Examples](#examples)  
 - [Configuration Options](#configuration-options)  
