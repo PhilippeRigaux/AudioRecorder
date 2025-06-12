@@ -73,6 +73,13 @@ A command-line macOS tool written in Swift that uses **AVFoundation** and **Swif
 
 ## Usage
 
+### Command-line Options
+
+| Option           | Description                                                |
+| ---------------- | ---------------------------------------------------------- |
+| `-h`, `--help`   | Show this help message and exit.                          |
+| `-p <port>`      | Specify the HTTP port (default `8000`).                   |
+
 Once running, control the recorder via HTTP GET requests:
 
 ### HTTP API
