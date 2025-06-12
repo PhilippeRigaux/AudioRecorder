@@ -6,6 +6,31 @@ import AVFoundation
 import Swifter
 import AudioUnit
 
+// Parse command-line arguments
+var serverPort: Int = 8000
+let args = CommandLine.arguments
+for i in 1..<args.count {
+    let arg = args[i]
+    if arg == "-h" || arg == "--help" {
+        print("""
+        Usage: AudioRecorder [-p port]
+        
+        Options:
+          -h, --help     Affiche ce message d'aide.
+          -p <port>      Définit le port HTTP (par défaut 8000).
+        """)
+        exit(0)
+    } else if arg == "-p", i + 1 < args.count {
+        if let port = Int(args[i+1]) {
+            serverPort = port
+        } else {
+            print("Port invalide : \(args[i+1])")
+            exit(1)
+        }
+    }
+}
+
+
 // MARK: - Configuration and global state
 
 var sampleRate: Double          = 96_000.0
@@ -197,10 +222,10 @@ server["/stop"] = { _ in
 }
 
 do {
-  try server.start(UInt16(8000), forceIPv4: true)
-  print("HTTP server started on port 8000")
+    try server.start(UInt16(serverPort), forceIPv4: true)
+    print("HTTP server started on port \(serverPort)")
 } catch {
-  print("Error starting server: \(error)")
+    print("Error starting server: \(error)")
 }
 
 // MARK: – Moteur audio et détection
