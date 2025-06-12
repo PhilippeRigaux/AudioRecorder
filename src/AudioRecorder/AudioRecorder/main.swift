@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Swifter
+import AudioUnit
 
 // MARK: – Configuration et état global
 
@@ -23,6 +24,39 @@ var currentLevel: Double = 0.0
 
 // Device sélectionnable (TODO : implémenter si besoin via CoreAudio API)
 var inputDeviceName: String? = nil
+
+/// Return the AudioDeviceID for the device matching the given name
+func audioDeviceID(forName name: String) -> AudioDeviceID? {
+    var propertySize: UInt32 = 0
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    )
+    guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &propertySize) == noErr else {
+        return nil
+    }
+    let deviceCount = Int(propertySize) / MemoryLayout<AudioDeviceID>.size
+    var deviceIDs = [AudioDeviceID](repeating: AudioDeviceID(), count: deviceCount)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &propertySize, &deviceIDs) == noErr else {
+        return nil
+    }
+    for id in deviceIDs {
+        var deviceName: CFString = "" as CFString
+        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        var nameAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceNameCFString,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster
+        )
+        if AudioObjectGetPropertyData(id, &nameAddress, 0, nil, &nameSize, &deviceName) == noErr {
+            if (deviceName as String) == name {
+                return id
+            }
+        }
+    }
+    return nil
+}
 
 // MARK: – Serveur HTTP
 
@@ -77,7 +111,7 @@ server["/setdevice"] = { req in
     if let name = req.queryParams.first(where: { $0.0 == "deviceName" })?.1,
        !name.isEmpty {
         inputDeviceName = name
-        return .ok(.text("Input device set to \(name)"))
+        return .ok(.text("Will record from device '\(name)'"))
     } else {
         return .badRequest(.text("Missing or empty 'deviceName' parameter"))
     }
@@ -153,6 +187,7 @@ do {
 class AudioRecorder {
   static let shared = AudioRecorder()
   private let engine = AVAudioEngine()
+  
   private var audioFile: AVAudioFile?
   
   private init() {
@@ -160,23 +195,34 @@ class AudioRecorder {
   }
   
   func start() {
-    // (Re)install tap for audio processing
     let input = engine.inputNode
+    // If a specific device name is set, configure the HAL input audio unit directly
+    if let deviceName = inputDeviceName,
+       let deviceID = audioDeviceID(forName: deviceName) {
+        var id = deviceID
+        AudioUnitSetProperty(
+            input.audioUnit!,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &id,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+    }
     let fmt = input.inputFormat(forBus: 0)
     input.removeTap(onBus: 0)
     input.installTap(onBus: 0, bufferSize: bufferSize, format: fmt) { [weak self] buffer, _ in
         self?.process(buffer: buffer)
     }
     engine.prepare()
-    
     do {
-      try engine.start()
+        try engine.start()
     } catch {
-      print("Audio engine start error:", error)
-      recording = false
-      return
+        print("Audio engine start error:", error)
+        recording = false
+        return
     }
-    
+  
     // Création du fichier AVAudioFile (écriture WAV PCM)
     let settings: [String: Any] = [
       AVFormatIDKey:            kAudioFormatLinearPCM,
