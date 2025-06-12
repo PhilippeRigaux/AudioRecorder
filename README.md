@@ -178,4 +178,4 @@ Adjust these via the corresponding HTTP endpoints before starting a recording.
 
 ## License
 
-MIT License © [Your Name]
+MIT License. See [LICENSE](LICENSE) for details.
